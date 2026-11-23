@@ -14,7 +14,9 @@ import android.annotation.SuppressLint
 import android.app.*
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -136,7 +138,7 @@ class MainService : Service() {
                             wakeLock.acquire(5000)
                         }
                         if (!isFileTransfer && !isStart) {
-                            startCapture()
+                            startCaptureWhenUnlocked()
                         }
                         onClientAuthorizedNotification(id, type, username, peerId)
                     } else {
@@ -569,6 +571,38 @@ class MainService : Service() {
         captureRestartInVoiceCall = false
         return stopMicrophoneCapture {
             audioRecordHandle.onVoiceCallClosed(mediaProjection)
+        }
+    }
+
+    // Endpoint Manager: Android 15+ aborts screen capture started while the lock screen shows (and
+    // the sharing permission is lost). So: no lock screen -> capture now; swipe lock -> dismiss it,
+    // then capture; PIN/pattern -> wait, and capture as soon as someone unlocks the phone.
+    private val keyguard: KeyguardManager by lazy { getSystemService(KEYGUARD_SERVICE) as KeyguardManager }
+    private var unlockReceiver: BroadcastReceiver? = null
+
+    private fun startCaptureWhenUnlocked() {
+        if (!keyguard.isKeyguardLocked) {
+            startCapture()
+            return
+        }
+        if (unlockReceiver == null) {
+            val r = object : BroadcastReceiver() {
+                override fun onReceive(c: Context?, i: Intent?) {
+                    try { unregisterReceiver(this) } catch (_: Exception) {}
+                    unlockReceiver = null
+                    Log.d(logTag, "Unlocked: start capture")
+                    if (!isStart) startCapture()
+                }
+            }
+            unlockReceiver = r
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
+            else registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT))
+        }
+        if (!keyguard.isKeyguardSecure) {
+            Log.d(logTag, "Swipe lock screen: dismiss it before capture")
+            startActivity(Intent(this, UnlockActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } else {
+            Log.d(logTag, "PIN lock screen: capture starts when the phone is unlocked")
         }
     }
 

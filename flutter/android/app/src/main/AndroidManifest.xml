@@ -94,6 +94,12 @@
             android:theme="@style/Transparent" />
 
         <activity
+            android:name=".UnlockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Transparent" />
+
+        <activity
             android:name=".PermissionRequestTransparentActivity"
             android:excludeFromRecents="true"
             android:theme="@style/Transparent" />
