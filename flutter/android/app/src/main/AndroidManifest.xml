@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <!-- Endpoint Manager: declared in both apps, so it works whichever is installed first -->
+    <permission android:name="com.pharmacykw.permission.PROVISION" android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -82,6 +84,14 @@
                 <data android:scheme="rustdesk" />
             </intent-filter>
         </activity>
+
+        <!-- Endpoint Manager: only the phone app (same signing key) may provision RustDesk -->
+        <activity
+            android:name=".ProvisionActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:permission="com.pharmacykw.permission.PROVISION"
+            android:theme="@style/Transparent" />
 
         <activity
             android:name=".PermissionRequestTransparentActivity"

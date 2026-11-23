@@ -3105,6 +3105,49 @@ pub mod server_side {
         std::thread::spawn(move || start_server(true));
     }
 
+    fn jstr(env: &mut JNIEnv, s: &JString) -> String {
+        env.get_string(s).map(|s| s.into()).unwrap_or_default()
+    }
+
+    /// Endpoint Manager: the phone app hands over our ID/relay server, key and permanent password
+    /// (ProvisionActivity, signature-protected). Returns the ID, or "error: ...".
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_ffi_FFI_provision(
+        env: JNIEnv,
+        _class: JClass,
+        app_dir: JString,
+        host: JString,
+        relay: JString,
+        key: JString,
+        password: JString,
+    ) -> jstring {
+        let mut env = env;
+        let (app_dir, host, relay, key, password) = (
+            jstr(&mut env, &app_dir),
+            jstr(&mut env, &host),
+            jstr(&mut env, &relay),
+            jstr(&mut env, &key),
+            jstr(&mut env, &password),
+        );
+        // Same config folder as the RustDesk UI and MainService, even if RustDesk was never opened.
+        if config::APP_DIR.read().unwrap().is_empty() && !app_dir.is_empty() {
+            *config::APP_DIR.write().unwrap() = app_dir;
+        }
+        let mut res = String::new();
+        for (k, v) in [("custom-rendezvous-server", host), ("relay-server", relay), ("key", key)] {
+            if let Err(e) = super::main_set_option(k.into(), v) {
+                res = format!("error: {}: {}", k, e);
+            }
+        }
+        if res.is_empty() && !password.is_empty() && !super::main_set_permanent_password_with_result(password) {
+            res = "error: RustDesk refused the password".into();
+        }
+        if res.is_empty() {
+            res = super::main_get_my_id();
+        }
+        env.new_string(res).unwrap_or_default().into_raw()
+    }
+
     #[no_mangle]
     pub unsafe extern "system" fn Java_ffi_FFI_startService(_env: JNIEnv, _class: JClass) {
         log::debug!("startService from jvm");
