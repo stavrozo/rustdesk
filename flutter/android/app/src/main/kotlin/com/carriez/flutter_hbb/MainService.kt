@@ -128,6 +128,13 @@ class MainService : Service() {
                         translate("Share screen")
                     }
                     if (authorized) {
+                        // Endpoint Manager: a phone with its screen off sends no image, so wake it
+                        // for a new screen session instead of waiting for the first click.
+                        if (!isFileTransfer && !powerManager.isInteractive) {
+                            Log.d(logTag, "Turn on Screen for new connection")
+                            if (wakeLock.isHeld) wakeLock.release()
+                            wakeLock.acquire(5000)
+                        }
                         if (!isFileTransfer && !isStart) {
                             startCapture()
                         }
