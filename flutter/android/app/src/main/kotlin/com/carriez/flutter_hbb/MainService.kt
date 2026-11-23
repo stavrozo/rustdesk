@@ -268,6 +268,7 @@ class MainService : Service() {
     }
 
     override fun onDestroy() {
+        cancelUnlockWait()
         checkMediaPermission()
         stopService(Intent(this, FloatingWindowService::class.java))
         super.onDestroy()
@@ -580,6 +581,11 @@ class MainService : Service() {
     private val keyguard: KeyguardManager by lazy { getSystemService(KEYGUARD_SERVICE) as KeyguardManager }
     private var unlockReceiver: BroadcastReceiver? = null
 
+    private fun cancelUnlockWait() {
+        unlockReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
+        unlockReceiver = null
+    }
+
     private fun startCaptureWhenUnlocked() {
         if (!keyguard.isKeyguardLocked) {
             startCapture()
@@ -595,7 +601,8 @@ class MainService : Service() {
                 }
             }
             unlockReceiver = r
-            if (Build.VERSION.SDK_INT >= 33) registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
+            // USER_PRESENT is a system broadcast: it still arrives at a not-exported receiver
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_NOT_EXPORTED)
             else registerReceiver(r, IntentFilter(Intent.ACTION_USER_PRESENT))
         }
         if (!keyguard.isKeyguardSecure) {
@@ -671,6 +678,7 @@ class MainService : Service() {
     @Synchronized
     fun stopCapture() {
         Log.d(logTag, "Stop Capture")
+        cancelUnlockWait() // the last screen session ended: don't start capture at a later unlock
         captureRestartPending = false
         captureRestartInVoiceCall = false
         FFI.setFrameRawEnable("video",false)
